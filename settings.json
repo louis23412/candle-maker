@@ -1,0 +1,5 @@
+{
+    "candleLimit" : 25,
+    "keepCandles" : true,
+    "priceMode" : 2 
+}

@@ -1,24 +1,27 @@
+const fs = require('fs');
 const hive = require('@hiveio/hive-js');
-
-const candleLimit = 25;
+const {candleLimit, keepCandles, priceMode} = JSON.parse(fs.readFileSync('./settings.json'));
 
 let globalState = {
-    candleCounter : 0
+    candleCounter : 0,
+    lastPriceState : {},
+    candleDataBase : [],
+    tempPriceHolder : []
 };
 
-let lastPriceState = {};
-
-let candleDataBase = [];
-
-let tempPriceHolder = [];
+const saveCandles = () => {
+    if (keepCandles == true) {
+        fs.writeFileSync('./candleDump.json', JSON.stringify(globalState.candleDataBase))
+    }
+}
 
 const createCandle = (startTime, endTime) => {
-    const highPrice = Math.max(...tempPriceHolder);
-    const lowPrice = Math.min(...tempPriceHolder);
-    const openPrice = tempPriceHolder[0];
-    const closePrice = tempPriceHolder[tempPriceHolder.length -1]
+    const highPrice = Math.max(...globalState.tempPriceHolder);
+    const lowPrice = Math.min(...globalState.tempPriceHolder);
+    const openPrice = globalState.tempPriceHolder[0];
+    const closePrice = globalState.tempPriceHolder[globalState.tempPriceHolder.length -1]
 
-    candleDataBase.push({
+    globalState.candleDataBase.push({
         start : startTime,
         endTime : endTime,
         candleTimeSize : (endTime - startTime) / 1000,
@@ -28,13 +31,14 @@ const createCandle = (startTime, endTime) => {
         low : lowPrice
     })
 
-    tempPriceHolder = [];
+    globalState.tempPriceHolder = [];
     globalState.candleCounter++;
     
     console.log('----------------------')
     console.log(`Candle created! #${globalState.candleCounter}`)
     console.log(`Open:${openPrice} - High: ${highPrice} - Low: ${lowPrice} - Close: ${closePrice}`);
     console.log('----------------------')
+    saveCandles();
 }
 
 const updatePrice = () => {
@@ -42,7 +46,7 @@ const updatePrice = () => {
         setTimeout( async () => {
             const timeDiff = (((new Date().getTime() - globalState.lastUpdate) / 1000))
 
-            console.log(`Price updated(${lastPriceState.highest_bid})! => time diff: ${timeDiff} - Current candles: ${candleDataBase.length} / ${candleLimit}`)
+            console.log(`Price updated(${globalState.lastPriceState.highest_bid})! => time diff: ${timeDiff} - Current candles: ${globalState.candleDataBase.length} / ${candleLimit}`)
             globalState.lastUpdate = new Date().getTime()
 
             if (globalState.lastUpdate - globalState.lastCandleCreated > 60000) {
@@ -50,24 +54,32 @@ const updatePrice = () => {
                 globalState.lastCandleCreated = globalState.lastUpdate;
             }
 
-            if (candleDataBase.length == candleLimit + 1) {
-                candleDataBase.shift();
+            if (globalState.candleDataBase.length == candleLimit + 1) {
+                globalState.candleDataBase.shift();
             }
 
             hive.api.getTicker(function(err, data) {
-                lastPriceState = {
+                globalState.lastPriceState = {
                     latest : data.latest,
                     lowest_ask : data.lowest_ask,
                     highest_bid : data.highest_bid
                 }
-                tempPriceHolder.push(Number(data.highest_bid))
+
+                if (priceMode == 0) {
+                    globalState.tempPriceHolder.push(Number(data.latest))
+                } else if (priceMode == 1) {
+                    globalState.tempPriceHolder.push(Number(data.lowest_ask))
+                } else if (priceMode == 2) {
+                    globalState.tempPriceHolder.push(Number(data.highest_bid))
+                }
+                
             });
             updatePrice();
         }, 5000)
     })
 }
 
-const candleBuilder = async () => {
+const main = async () => {
     globalState.startingTime = new Date().getTime()
     globalState.lastUpdate = globalState.startingTime;
     globalState.lastCandleCreated = globalState.startingTime;
@@ -77,4 +89,4 @@ const candleBuilder = async () => {
 }
 
 
-candleBuilder();
+main();
