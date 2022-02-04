@@ -1,6 +1,6 @@
 const fs = require('fs');
 const hive = require('@hiveio/hive-js');
-const {candleLimit, keepCandles, priceMode} = JSON.parse(fs.readFileSync('./settings.json'));
+const {updateRate, candleLimit, keepCandles, priceMode} = JSON.parse(fs.readFileSync('./settings.json'));
 
 let globalState = {
     candleCounter : 0,
@@ -75,11 +75,11 @@ const updatePrice = () => {
                 
             });
             updatePrice();
-        }, 5000)
+        }, updateRate * 1000)
     })
 }
 
-const main = async () => {
+const main = () => {
     globalState.startingTime = new Date().getTime()
     globalState.lastUpdate = globalState.startingTime;
     globalState.lastCandleCreated = globalState.startingTime;
