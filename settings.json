@@ -5,7 +5,6 @@
     "keepCandles" : false,
 
     "broadcast" : true,
-    "bRate" : 5,
     "bUser" : "usernameHere",
     "bKey" : "privatePostingKeyHere"
 }
