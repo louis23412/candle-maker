@@ -1,6 +1,12 @@
 {
     "updateRate" : 5,
-    "candleLimit" : 25,
-    "keepCandles" : true,
-    "priceMode" : 2 
+    "candleSize" : 1,
+    "candleLimit" : 500,
+    "keepCandles" : false,
+    "priceMode" : 2,
+
+    "broadcast" : true,
+    "bRate" : 5,
+    "bUser" : "usernameHere",
+    "bKey" : "privatePostingKeyHere"
 }
