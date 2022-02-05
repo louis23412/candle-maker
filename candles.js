@@ -52,6 +52,40 @@ const createCandle = (startTime, endTime) => {
     saveCandles();
 }
 
+const broadcastCandle = () => {
+    let pMode = '';
+
+    if (priceMode == 0) {
+        pMode = 'latest'
+    } else if (priceMode == 1) {
+        pMode = 'lowest_ask'
+    } else if (priceMode == 2) {
+        pMode = 'highest_bid'
+    }
+
+    const lastNCandles = globalState.candleDataBase.slice(-Math.abs(bRate))
+
+    const json = JSON.stringify({
+        priceMode : pMode,
+        candleQty : bRate,
+        candles : lastNCandles
+    });
+
+    const id = `${bUser}-candleMaker`
+
+    try {
+        hive.broadcast.customJson(bKey, [], [bUser], id, json, function(err, result) {
+            if (err) {
+                globalState.candleBroadcastErrors++;
+            } else {
+                console.log(`Broadcast success!`);
+            }
+        });
+    } catch (error) {
+        globalState.candleBroadcastErrors++;
+    } 
+}
+
 const updatePrice = () => {
     new Promise((resolve, reject) => {
         setTimeout( async () => {
@@ -96,40 +130,6 @@ const updatePrice = () => {
             updatePrice();
         }, updateRate * 1000)
     })
-}
-
-const broadcastCandle = () => {
-    let pMode = '';
-
-    if (priceMode == 0) {
-        pMode = 'latest'
-    } else if (priceMode == 1) {
-        pMode = 'lowest_ask'
-    } else if (priceMode == 2) {
-        pMode = 'highest_bid'
-    }
-
-    const lastNCandles = globalState.candleDataBase.slice(-Math.abs(bRate))
-
-    const json = JSON.stringify(['custom_json', {
-        priceMode : pMode,
-        candleQty : bRate,
-        candles : lastNCandles
-    }]);
-
-    const id = `${bUser}-candleMaker`
-
-    try {
-        hive.broadcast.customJson(bKey, [], [bUser], id, json, function(err, result) {
-            if (err) {
-                globalState.candleBroadcastErrors++;
-            } else {
-                console.log(`Broadcast success!`);
-            }
-        });
-    } catch (error) {
-        globalState.candleBroadcastErrors++;
-    } 
 }
 
 const main = () => {
