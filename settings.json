@@ -3,7 +3,6 @@
     "candleSize" : 1,
     "candleLimit" : 500,
     "keepCandles" : false,
-    "priceMode" : 2,
 
     "broadcast" : true,
     "bRate" : 5,

@@ -1,16 +1,17 @@
 const fs = require('fs');
 const hive = require('@hiveio/hive-js');
 const {
-    updateRate, candleSize, candleLimit, keepCandles, priceMode, broadcast, bRate, bUser, bKey
+    updateRate, candleSize, candleLimit, keepCandles, broadcast, bUser, bKey
 } = JSON.parse(fs.readFileSync('./settings.json'));
 
 let globalState = {
     candleCounter : 0,
     priceUpdateErrors : 0,
     candleBroadcastErrors: 0,
-    lastPriceState : {},
     candleDataBase : [],
-    tempPriceHolder : []
+    tempPriceHolder1 : [],
+    tempPriceHolder2 : [],
+    tempPriceHolder3 : []
 };
 
 const saveCandles = () => {
@@ -21,30 +22,49 @@ const saveCandles = () => {
 
 const createCandle = (startTime, endTime) => {
     globalState.candleCounter++;
-
-    const highPrice = Math.max(...globalState.tempPriceHolder);
-    const lowPrice = Math.min(...globalState.tempPriceHolder);
-    const openPrice = globalState.tempPriceHolder[0];
-    const closePrice = globalState.tempPriceHolder[globalState.tempPriceHolder.length -1]
-
     globalState.candleDataBase.push({
-        candleNum : globalState.candleCounter,
-        start : startTime,
-        endTime : endTime,
-        candleTimeSize : (endTime - startTime) / 1000,
-        open : openPrice,
-        high : highPrice,
-        close : closePrice,
-        low : lowPrice
+        "latest" : {
+            candleNum : globalState.candleCounter,
+            start : startTime,
+            endTime : endTime,
+            candleTimeSize : (endTime - startTime) / 1000,
+            open : globalState.tempPriceHolder1[0],
+            high : Math.max(...globalState.tempPriceHolder1),
+            close : globalState.tempPriceHolder1[globalState.tempPriceHolder1.length -1],
+            low : Math.min(...globalState.tempPriceHolder1)
+        },
+
+        "lowest_ask" : {
+            candleNum : globalState.candleCounter,
+            start : startTime,
+            endTime : endTime,
+            candleTimeSize : (endTime - startTime) / 1000,
+            open : globalState.tempPriceHolder2[0],
+            high : Math.max(...globalState.tempPriceHolder2),
+            close : globalState.tempPriceHolder2[globalState.tempPriceHolder2.length -1],
+            low : Math.min(...globalState.tempPriceHolder2)
+        },
+
+        "highest_bid" : {
+            candleNum : globalState.candleCounter,
+            start : startTime,
+            endTime : endTime,
+            candleTimeSize : (endTime - startTime) / 1000,
+            open : globalState.tempPriceHolder3[0],
+            high : Math.max(...globalState.tempPriceHolder3),
+            close : globalState.tempPriceHolder3[globalState.tempPriceHolder3.length -1],
+            low : Math.min(...globalState.tempPriceHolder3)
+        }
     })
 
-    globalState.tempPriceHolder = [];
+    globalState.tempPriceHolder1 = [];
+    globalState.tempPriceHolder2 = [];
+    globalState.tempPriceHolder3 = [];
     
     console.log('----------------------')
     console.log(`Candle created! #${globalState.candleCounter}`)
-    console.log(`Open:${openPrice} - High: ${highPrice} - Low: ${lowPrice} - Close: ${closePrice}`);
 
-    if (broadcast && globalState.candleCounter % bRate == 0) {
+    if (broadcast) {
         console.log('Broadcasting now...')
         broadcastCandle()
     }
@@ -53,28 +73,9 @@ const createCandle = (startTime, endTime) => {
 }
 
 const broadcastCandle = () => {
-    let pMode = '';
-
-    if (priceMode == 0) {
-        pMode = 'latest'
-    } else if (priceMode == 1) {
-        pMode = 'lowest_ask'
-    } else if (priceMode == 2) {
-        pMode = 'highest_bid'
-    }
-
-    const lastNCandles = globalState.candleDataBase.slice(-Math.abs(bRate))
-
-    const json = JSON.stringify({
-        priceMode : pMode,
-        candleQty : bRate,
-        candles : lastNCandles
-    });
-
-    const id = `${bUser}-candleMaker`
-
+    const json = JSON.stringify(globalState.candleDataBase.slice(-1));
     try {
-        hive.broadcast.customJson(bKey, [], [bUser], id, json, function(err, result) {
+        hive.broadcast.customJson(bKey, [], [bUser], `${bUser}-candleMaker`, json, function(err, result) {
             if (err) {
                 globalState.candleBroadcastErrors++;
             } else {
@@ -91,8 +92,7 @@ const updatePrice = () => {
         setTimeout( async () => {
             const timeDiff = (((new Date().getTime() - globalState.lastUpdate) / 1000))
 
-            console.log(`*Price updated(${globalState.lastPriceState.highest_bid})! => time diff: ${timeDiff} - Current candles: ${globalState.candleDataBase.length} / ${candleLimit}`)
-            console.log(`(Price check errors: ${globalState.priceUpdateErrors} - Candle broadcast errors: ${globalState.candleBroadcastErrors})`)
+            console.log(`*Price updated! => time diff: ${timeDiff} - Current candles: ${globalState.candleDataBase.length} / ${candleLimit} (Price check errors: ${globalState.priceUpdateErrors} - Candle broadcast errors: ${globalState.candleBroadcastErrors})`)
             globalState.lastUpdate = new Date().getTime()
 
             if (globalState.lastUpdate - globalState.lastCandleCreated >= (candleSize * 60) * 1000) {
@@ -107,19 +107,9 @@ const updatePrice = () => {
             try {
                 hive.api.getTicker(function(err, data) {
                     if (data) {
-                        globalState.lastPriceState = {
-                            latest : data.latest,
-                            lowest_ask : data.lowest_ask,
-                            highest_bid : data.highest_bid
-                        }
-        
-                        if (priceMode == 0) {
-                            globalState.tempPriceHolder.push(Number(data.latest))
-                        } else if (priceMode == 1) {
-                            globalState.tempPriceHolder.push(Number(data.lowest_ask))
-                        } else if (priceMode == 2) {
-                            globalState.tempPriceHolder.push(Number(data.highest_bid))
-                        }
+                        globalState.tempPriceHolder1.push(Number(data.latest))
+                        globalState.tempPriceHolder2.push(Number(data.lowest_ask))
+                        globalState.tempPriceHolder3.push(Number(data.highest_bid))
                     } else {
                         globalState.priceUpdateErrors++;
                     }
